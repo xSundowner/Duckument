@@ -1653,7 +1653,7 @@ function loadZetaOffice(){
       const ModuleObj = {
         canvas: canvas,
         uno_scripts: [
-          'https://cdn.jsdelivr.net/npm/zetajs@1/lib/zeta.js',
+          soffice_base_url + 'zeta.js',
           URL.createObjectURL(new Blob([readySignal], {type:'text/javascript'}))
         ],
         locateFile: function(path, prefix){ return (prefix || soffice_base_url) + path; }
@@ -1667,7 +1667,7 @@ function loadZetaOffice(){
       s.src = soffice_base_url + 'soffice.js';
       s.onerror = ()=>reject(new Error('não deu pra baixar o componente do LibreOffice (rede ou CDN indisponível)'));
       document.body.appendChild(s);
-      setTimeout(()=>reject(new Error('tempo esgotado esperando o LibreOffice inicializar')), 45000);
+      setTimeout(()=>reject(new Error('tempo esgotado esperando o LibreOffice inicializar')), 90000);
     }catch(e){ reject(e); }
   });
   return zetaLoadPromise;
