@@ -844,8 +844,8 @@
         <strong>⚠️ Recurso experimental — leia antes de usar:</strong>
         <ul>
           <li>Baixa um componente pesado (150–250 MB) na hora de converter, só na primeira vez da sessão.</li>
-          <li>Pode levar de 10 a 20 segundos só pra inicializar, antes de começar a converter de verdade.</li>
-          <li><strong>Precisa que o site esteja hospedado num servidor com os cabeçalhos HTTP corretos (COOP/COEP)</strong> — não funciona abrindo o arquivo <code>.html</code> direto do computador. No GitHub Pages (que não permite configurar cabeçalhos), incluí um arquivo <code>coi-serviceworker.js</code> que resolve isso — ele precisa estar na mesma pasta do <code>.html</code> publicado. Na primeira visita, a página recarrega uma vez sozinha — é esperado, não é erro.</li>
+          <li>Na primeira vez, o download + a inicialização podem levar de 30 segundos a alguns minutos, dependendo da conexão. Depois disso, as próximas conversões na mesma aba são rápidas.</li>
+          <li><strong>Precisa que o site esteja hospedado num servidor com os cabeçalhos HTTP corretos (COOP/COEP)</strong> — não funciona abrindo o arquivo <code>.html</code> direto do computador. No GitHub Pages (que não permite configurar cabeçalhos), incluí um arquivo <code>coi-serviceworker.js</code> que resolve isso. Ele e o <code>zeta.js</code> precisam estar na mesma pasta do <code>.html</code> publicado. Na primeira visita, a página recarrega uma vez sozinha — é esperado, não é erro.</li>
           <li>Essa integração específica não pôde ser testada de ponta a ponta — é melhor esforço.</li>
         </ul>
       </div>
@@ -1614,9 +1614,14 @@ document.getElementById('btn-delete').addEventListener('click', async ()=>{
 });
 
 // ================= PDF PARA WORD (BETA — LibreOffice via ZetaOffice/WASM) =================
+// Arquitetura (igual ao exemplo oficial "convertpdf" do zetajs):
+//  - O LibreOffice roda numa thread separada (web worker / pthread do Emscripten).
+//  - O zetajs e todas as chamadas UNO (abrir, salvar) SÓ existem dentro dessa thread.
+//  - A página principal só escreve/lê arquivos no FS virtual e conversa com a
+//    thread por mensagens (Module.uno_main -> MessagePort).
 let pdf2wordFile = null;
 
-function checkCrossOriginIsolation(){
+function checkCrossOriginIsolated(){
   const blocked = document.getElementById('pdf2word-blocked');
   const available = document.getElementById('pdf2word-available');
   if(!blocked || !available) return;
@@ -1628,92 +1633,199 @@ function checkCrossOriginIsolation(){
     available.style.display = 'block';
   }
 }
-checkCrossOriginIsolation();
+checkCrossOriginIsolated();
 
 setupDropzone(document.getElementById('dz-pdf2word'), document.getElementById('file-pdf2word'), files=>{
   if(!files.length) return;
-  pdf2wordFile = files[0];
+  const f = files[0];
+  const statusEl = document.getElementById('status-pdf2word');
+  if(!/\.pdf$/i.test(f.name) && f.type !== 'application/pdf'){
+    statusEl.className = 'status err';
+    statusEl.textContent = 'esse arquivo não parece ser um PDF';
+    return;
+  }
+  pdf2wordFile = f;
+  statusEl.className = 'status';
+  statusEl.textContent = '';
   document.getElementById('pdf2word-fileinfo').textContent = `${pdf2wordFile.name} · ${fmtSize(pdf2wordFile.size)}`;
   document.getElementById('pdf2word-config').style.display = 'block';
+  document.getElementById('file-pdf2word').value = ''; // permite escolher o mesmo arquivo de novo
 });
 
-let zetaLoadPromise = null;
-function loadZetaOffice(){
-  if(zetaLoadPromise) return zetaLoadPromise;
-  zetaLoadPromise = new Promise((resolve, reject)=>{
+// Código que roda DENTRO da thread do LibreOffice (não tem window/document aqui).
+const ZETA_THREAD_SCRIPT = `
+Module.zetajs.then(function(zetajs){
+  const css = zetajs.uno.com.sun.star;
+  const desktop = css.frame.Desktop.create(zetajs.getUnoComponentContext());
+  const port = zetajs.mainPort;
+  function prop(name, value){ return new css.beans.PropertyValue({Name: name, Value: value}); }
+  function errMsg(err){
     try{
-      const soffice_base_url = 'https://cdn.zetaoffice.net/zetaoffice_latest/';
-      const canvas = document.getElementById('qtcanvas');
-      const readySignal = `
-        Module.zetajs.then(function(zetajs){
-          window.__zetajs = zetajs;
-          if(window.__zetaReady) window.__zetaReady();
-        });
-      `;
+      const exc = zetajs.catchUnoException(err);
+      return (exc && exc.Message) || String(zetajs.getAnyType(exc));
+    }catch(e2){
+      return String((err && err.message) || err);
+    }
+  }
+  port.onmessage = function(e){
+    const d = e.data || {};
+    if(d.cmd !== 'convert') return;
+    let xModel = null;
+    try{
+      // writer_pdf_import abre o PDF no Writer (sem isso ele abre no Draw,
+      // e o Draw não consegue exportar para .docx).
+      xModel = desktop.loadComponentFromURL('file://' + d.from, '_blank', 0,
+        [prop('Hidden', true), prop('FilterName', 'writer_pdf_import')]);
+      if(!xModel) throw new Error('o LibreOffice não conseguiu abrir o PDF');
+      xModel.storeToURL('file://' + d.to,
+        [prop('Overwrite', true), prop('FilterName', 'MS Word 2007 XML')]);
+      port.postMessage({cmd: 'converted', id: d.id});
+    }catch(err){
+      port.postMessage({cmd: 'error', id: d.id, message: errMsg(err)});
+    }finally{
+      try{ if(xModel) xModel.close(false); }catch(e3){}
+    }
+  };
+  port.postMessage({cmd: 'ready'});
+});
+`;
+
+const zeta = { promise: null, port: null, FS: null, failed: null, pending: new Map(), nextId: 1 };
+
+function fmtMB(bytes){ return (bytes/1048576).toFixed(0) + ' MB'; }
+
+function loadZetaOffice(onStatus){
+  if(zeta.failed) return Promise.reject(zeta.failed);
+  if(zeta.promise) return zeta.promise;
+  zeta.promise = new Promise((resolve, reject)=>{
+    let settled = false;
+    let timer = null;
+    const finish = (ok, val)=>{
+      if(settled) return;
+      settled = true;
+      clearTimeout(timer);
+      if(ok) resolve(val);
+      else { zeta.failed = val; reject(val); }
+    };
+    const armTimeout = ()=>{
+      clearTimeout(timer);
+      // o timeout só conta a partir da última atividade (download progredindo não estoura)
+      timer = setTimeout(()=>finish(false, new Error('tempo esgotado esperando o LibreOffice inicializar')), 120000);
+    };
+    armTimeout();
+
+    const soffice_base_url = 'https://cdn.zetaoffice.net/zetaoffice_latest/';
+    const zetaJsUrl = new URL('zeta.js', location.href).href;
+
+    // zeta.js precisa estar publicado na mesma pasta do .html (mesma origem)
+    fetch(zetaJsUrl, {method:'HEAD'}).then(r=>{
+      if(!r.ok) throw new Error('arquivo zeta.js não encontrado ao lado do .html — publique-o na mesma pasta');
+    }).then(()=>{
+      const threadUrl = URL.createObjectURL(new Blob([ZETA_THREAD_SCRIPT], {type:'text/javascript'}));
       const ModuleObj = {
-        canvas: canvas,
-        uno_scripts: [
-          soffice_base_url + 'zeta.js',
-          URL.createObjectURL(new Blob([readySignal], {type:'text/javascript'}))
-        ],
-        locateFile: function(path, prefix){ return (prefix || soffice_base_url) + path; }
+        canvas: document.getElementById('qtcanvas'),
+        uno_scripts: [zetaJsUrl, threadUrl],
+        locateFile: (path, prefix)=>(prefix || soffice_base_url) + path,
+        mainScriptUrlOrBlob: new Blob(["importScripts('" + soffice_base_url + "soffice.js');"], {type:'text/javascript'}),
+        setStatus: (txt)=>{
+          if(!txt) return;
+          armTimeout();
+          const m = /\((\d+(?:\.\d+)?)\/(\d+(?:\.\d+)?)\)/.exec(txt);
+          if(m) onStatus(`baixando o LibreOffice… ${fmtMB(+m[1])} de ${fmtMB(+m[2])}`);
+          else onStatus('iniciando o LibreOffice…');
+        },
+        onAbort: (what)=>finish(false, new Error('o LibreOffice travou ao iniciar (' + (what || 'abort') + ')')),
       };
-      ModuleObj.mainScriptUrlOrBlob = new Blob(
-        ["importScripts('" + soffice_base_url + "soffice.js');"], {type:'text/javascript'}
-      );
       window.Module = ModuleObj;
-      window.__zetaReady = ()=>resolve(ModuleObj);
+
       const s = document.createElement('script');
       s.src = soffice_base_url + 'soffice.js';
-      s.onerror = ()=>reject(new Error('não deu pra baixar o componente do LibreOffice (rede ou CDN indisponível)'));
+      s.onerror = ()=>finish(false, new Error('não deu pra baixar o componente do LibreOffice (rede ou CDN indisponível)'));
+      s.onload = ()=>{
+        armTimeout();
+        onStatus('iniciando o LibreOffice…');
+        if(!ModuleObj.uno_main){
+          finish(false, new Error('o soffice.js carregou, mas não expôs Module.uno_main'));
+          return;
+        }
+        ModuleObj.uno_main.then(port=>{
+          port.onmessage = (e)=>{
+            const d = e.data || {};
+            if(d.cmd === 'ready'){
+              zeta.port = port;
+              zeta.FS = window.FS || ModuleObj.FS;
+              if(!zeta.FS){ finish(false, new Error('sistema de arquivos do LibreOffice indisponível')); return; }
+              finish(true, zeta);
+              return;
+            }
+            const job = zeta.pending.get(d.id);
+            if(!job) return;
+            zeta.pending.delete(d.id);
+            if(d.cmd === 'converted') job.resolve();
+            else job.reject(new Error(d.message || 'falha na conversão'));
+          };
+        }, err=>finish(false, err instanceof Error ? err : new Error(String(err))));
+      };
       document.body.appendChild(s);
-      setTimeout(()=>reject(new Error('tempo esgotado esperando o LibreOffice inicializar')), 90000);
-    }catch(e){ reject(e); }
+    }).catch(err=>finish(false, err));
   });
-  return zetaLoadPromise;
+  return zeta.promise;
+}
+
+function zetaConvert(from, to){
+  return new Promise((resolve, reject)=>{
+    const id = zeta.nextId++;
+    const t = setTimeout(()=>{
+      zeta.pending.delete(id);
+      reject(new Error('a conversão demorou demais e foi cancelada'));
+    }, 180000);
+    zeta.pending.set(id, {
+      resolve: ()=>{ clearTimeout(t); resolve(); },
+      reject: (e)=>{ clearTimeout(t); reject(e); },
+    });
+    zeta.port.postMessage({cmd:'convert', id, from, to});
+  });
 }
 
 document.getElementById('btn-pdf2word').addEventListener('click', async ()=>{
   const statusEl = document.getElementById('status-pdf2word');
   const btn = document.getElementById('btn-pdf2word');
+  if(!pdf2wordFile) return;
   btn.disabled = true;
   statusEl.className = 'status';
-  statusEl.innerHTML = '<span class="loader"></span> baixando e iniciando o LibreOffice (pode levar de 10 a 20s, ~150–250MB na primeira vez)…';
+  const setLoading = (txt)=>{ statusEl.innerHTML = '<span class="loader"></span> '; statusEl.appendChild(document.createTextNode(txt)); };
+  setLoading('baixando e iniciando o LibreOffice (na primeira vez baixa ~150–250 MB)…');
+  const from = '/tmp/entrada.pdf';
+  const to = '/tmp/saida.docx';
+  let ctx = null;
   try{
     if(!window.crossOriginIsolated){
       throw new Error('este ambiente não tem isolamento COOP/COEP ativo — hospede o site num servidor configurado com esses cabeçalhos');
     }
-    const ModuleObj = await loadZetaOffice();
-    const zetajs = window.__zetajs;
-    const css = zetajs.uno.com.sun.star;
+    ctx = await loadZetaOffice(setLoading);
 
-    statusEl.innerHTML = '<span class="loader"></span> carregando o PDF…';
-    const bytes = new Uint8Array(await pdf2wordFile.arrayBuffer());
-    ModuleObj.FS.writeFile('/tmp/entrada.pdf', bytes);
+    setLoading('carregando o PDF…');
+    ctx.FS.writeFile(from, new Uint8Array(await pdf2wordFile.arrayBuffer()));
 
-    const desktop = css.frame.Desktop.create(zetajs.getUnoComponentContext());
-    const hiddenProp = new css.beans.PropertyValue();
-    hiddenProp.Name = 'Hidden';
-    hiddenProp.Value = zetajs.toAny(true, zetajs.type.boolean);
-    const xModel = desktop.loadComponentFromURL('file:///tmp/entrada.pdf', '_blank', 0, [hiddenProp]);
+    setLoading('convertendo para .docx…');
+    await zetaConvert(from, to);
 
-    statusEl.innerHTML = '<span class="loader"></span> convertendo para .docx…';
-    const filterProp = new css.beans.PropertyValue();
-    filterProp.Name = 'FilterName';
-    filterProp.Value = zetajs.toAny('MS Word 2007 XML', zetajs.type.string);
-    xModel.storeToURL('file:///tmp/saida.docx', [filterProp]);
-    xModel.close(false);
-
-    const outBytes = ModuleObj.FS.readFile('/tmp/saida.docx');
+    const outBytes = ctx.FS.readFile(to);
     const outName = pdf2wordFile.name.replace(/\.pdf$/i, '') + '.docx';
     downloadBlob(new Blob([outBytes], {type:'application/vnd.openxmlformats-officedocument.wordprocessingml.document'}), outName);
     statusEl.className = 'status ok';
     statusEl.textContent = 'pronto — download iniciado';
   }catch(err){
     statusEl.className = 'status err';
-    statusEl.textContent = 'erro: ' + err.message + ' — recurso experimental (beta)';
+    const reload = zeta.failed ? ' Recarregue a página pra tentar de novo.' : '';
+    statusEl.textContent = 'erro: ' + err.message + ' — recurso experimental (beta).' + reload;
+  }finally{
+    if(ctx && ctx.FS){
+      try{ ctx.FS.unlink(from); }catch(e){}
+      try{ ctx.FS.unlink(to); }catch(e){}
+    }
+    btn.disabled = !!zeta.failed;
   }
-  btn.disabled = false;
 });
 
 // ================= IMAGEM PARA PDF =================
