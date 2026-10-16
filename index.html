@@ -4,19 +4,6 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>Duckument — ferramentas de documentos</title>
-<script>
-  // Ativa o coi-serviceworker.js SE ele existir ao lado deste HTML (ex: no GitHub Pages).
-  // Necessário só pro "PDF para Word (Beta)"; se o arquivo não estiver presente
-  // (ex: abrindo este .html direto do computador), essa checagem falha em silêncio
-  // e o resto do site funciona normalmente.
-  fetch('./coi-serviceworker.js', {method:'HEAD'}).then(r=>{
-    if(r.ok){
-      const s = document.createElement('script');
-      s.src = './coi-serviceworker.js';
-      document.head.appendChild(s);
-    }
-  }).catch(()=>{});
-</script>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link href="https://fonts.googleapis.com/css2?family=Baloo+2:wght@500;600;700&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
 <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf-lib/1.17.1/pdf-lib.min.js"></script>
@@ -570,24 +557,35 @@
   .ocr-progress-fill{ height:100%; width:0%; background:var(--lilac-ink); border-radius:999px; transition:width .3s ease; }
   .ocr-progress-label{ font-size:12.5px; color:var(--ink-soft); margin-top:7px; font-weight:600; }
 
-  .beta-badge{
-    display:inline-block; font-size:10px; font-weight:800; letter-spacing:0.6px;
-    background:var(--peach-ink); color:#fff; padding:2px 7px; border-radius:999px;
-    vertical-align:middle; margin-left:2px;
+  .split-modes{ margin-bottom:22px; max-width:560px; }
+  .split-opt-body{ flex:1; min-width:0; }
+  .split-extra{ display:none; margin-top:12px; }
+  .radio-opt.checked .split-extra{ display:block; }
+  .chip-row{ display:flex; flex-wrap:wrap; gap:8px; align-items:center; }
+  .chip{
+    font-family:'Inter',sans-serif; font-size:13px; font-weight:700;
+    padding:7px 14px; border-radius:999px; cursor:pointer;
+    background:var(--card); color:var(--ink); border:1.5px solid var(--line);
   }
-  .beta-warning{
-    background:var(--peach); border:1px solid color-mix(in srgb, var(--peach-ink) 40%, var(--line));
-    border-radius:var(--radius); padding:16px 18px; margin-bottom:22px;
-    font-size:13.5px; color:var(--ink); line-height:1.6;
+  .chip:hover{ border-color:var(--lilac-ink); }
+  .chip.active{ background:var(--lilac-ink); border-color:var(--lilac-ink); color:#fff; }
+  .split-extra input[type=number]{ width:84px; padding:7px 10px; }
+  .split-extra input[type=text]{ width:100%; max-width:320px; }
+  .split-inline{ font-size:13px; color:var(--ink-soft); font-weight:600; }
+  .split-summary{ display:flex; flex-wrap:wrap; gap:8px; margin-top:4px; }
+  .split-part{
+    display:inline-flex; align-items:center; gap:7px; font-size:12.5px; font-weight:700;
+    padding:6px 12px; border-radius:999px; background:var(--well); border:1px solid var(--line); color:var(--ink);
   }
-  .beta-warning strong{ color:var(--peach-ink); }
-  .beta-warning ul{ margin:8px 0 0; padding-left:20px; }
-  .beta-warning li{ margin-bottom:4px; }
-  .beta-blocked{
-    background:#fff0ee; border:1px solid var(--peach-ink); border-radius:var(--radius);
-    padding:16px 18px; margin-top:16px; font-size:13.5px; color:var(--peach-ink); font-weight:600;
-    display:none;
+  .split-part i{ width:10px; height:10px; border-radius:50%; flex:none; }
+  .split-part span{ color:var(--ink-soft); font-weight:600; }
+  .page-card.split-card{ cursor:default; border-width:2px; }
+  .page-card .pg-part{ font-size:10.5px; font-weight:800; letter-spacing:.3px; }
+  .page-card.split-card.part-start::before{
+    content:''; position:absolute; left:-9px; top:8px; bottom:8px; width:3px;
+    border-radius:3px; background:var(--part-color);
   }
+  .page-card.split-card.part-start:first-child::before{ display:none; }
 
   .note{
     font-size:13px; color:var(--ink-soft); background:var(--sky);
@@ -696,11 +694,11 @@
         <div class="card-title-row"><h3>OCR — tornar pesquisável</h3><span class="card-arrow">→</span></div>
         <p>PDF escaneado vira pesquisável, sem mudar a aparência.</p>
       </div>
-      <div class="menu-card c-peach" data-tool="pdf2word">
-      <button class="fav-star" data-tool="pdf2word" title="Favoritar" aria-label="Favoritar"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linejoin="round" stroke-linecap="round"><path d="M12 3.5l2.6 5.3 5.8.8-4.2 4.1 1 5.8-5.2-2.7-5.2 2.7 1-5.8-4.2-4.1 5.8-.8z"/></svg></button>
-              <div class="ic"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M14 3H7a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2V8z"/><path d="M14 3v5h5"/><path d="M9 15l1.5 4 1.5-3 1.5 3 1.5-4"/></svg></div>
-        <div class="card-title-row"><h3>PDF para Word <span class="beta-badge">BETA</span></h3><span class="card-arrow">→</span></div>
-        <p>Fidelidade real de layout via LibreOffice rodando no navegador. Experimental.</p>
+      <div class="menu-card c-peach" data-tool="split">
+      <button class="fav-star" data-tool="split" title="Favoritar" aria-label="Favoritar"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linejoin="round" stroke-linecap="round"><path d="M12 3.5l2.6 5.3 5.8.8-4.2 4.1 1 5.8-5.2-2.7-5.2 2.7 1-5.8-4.2-4.1 5.8-.8z"/></svg></button>
+              <div class="ic"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4" width="7.5" height="16" rx="1.5"/><rect x="13.5" y="4" width="7.5" height="16" rx="1.5"/><path d="M12 2v20" stroke-dasharray="2 2.5"/></svg></div>
+        <div class="card-title-row"><h3>Dividir PDF</h3><span class="card-arrow">→</span></div>
+        <p>Corte o arquivo ao meio, em 3, a cada X páginas ou por intervalos.</p>
       </div>
     </div>
     <div class="category-rule"><span class="category-rule-label">PDF</span></div>
@@ -833,45 +831,84 @@
     </div>
   </div>
 
-  <!-- PDF2WORD BETA -->
-  <div class="view" id="view-pdf2word" style="display:none;">
+  <!-- SPLIT -->
+  <div class="view" id="view-split" style="display:none;">
     <div class="view-head">
-      <h2>PDF para Word <span class="beta-badge">BETA</span></h2>
-      <p>Usa uma versão do LibreOffice compilada pra rodar inteiramente no seu navegador (via WebAssembly) — o mesmo motor por trás do "Abrir como Word" de verdade, não uma extração de texto aproximada.</p>
+      <h2>Dividir PDF</h2>
+      <p>Escolha como cortar o arquivo e confira na prévia quais páginas vão para cada parte.</p>
     </div>
     <div class="card">
-      <div class="beta-warning">
-        <strong>⚠️ Recurso experimental — leia antes de usar:</strong>
-        <ul>
-          <li>Baixa um componente pesado (150–250 MB) na hora de converter, só na primeira vez da sessão.</li>
-          <li>Na primeira vez, o download + a inicialização podem levar de 30 segundos a alguns minutos, dependendo da conexão. Depois disso, as próximas conversões na mesma aba são rápidas.</li>
-          <li><strong>Precisa que o site esteja hospedado num servidor com os cabeçalhos HTTP corretos (COOP/COEP)</strong> — não funciona abrindo o arquivo <code>.html</code> direto do computador. No GitHub Pages (que não permite configurar cabeçalhos), incluí um arquivo <code>coi-serviceworker.js</code> que resolve isso. Ele e o <code>zeta.js</code> precisam estar na mesma pasta do <code>.html</code> publicado. Na primeira visita, a página recarrega uma vez sozinha — é esperado, não é erro.</li>
-          <li>Essa integração específica não pôde ser testada de ponta a ponta — é melhor esforço.</li>
-        </ul>
+      <div class="dropzone" id="dz-split">
+        <div class="dz-ic"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4" width="7.5" height="16" rx="1.5"/><rect x="13.5" y="4" width="7.5" height="16" rx="1.5"/><path d="M12 2v20" stroke-dasharray="2 2.5"/></svg></div>
+        <div class="dz-label">Arraste um PDF aqui</div>
+        <div class="dz-sub">ou clique para escolher o arquivo</div>
+        <input type="file" id="file-split" accept="application/pdf">
       </div>
 
-      <div class="beta-blocked" id="pdf2word-blocked">
-        🚫 Este ambiente não tem isolamento de origem cruzada (COOP/COEP) ativo. Se você estiver no GitHub Pages, confira se o arquivo <code>coi-serviceworker.js</code> está na mesma pasta do <code>.html</code> publicado. Se estiver abrindo o arquivo direto do computador, essa ferramenta não vai funcionar aqui — publique o site pra usá-la.
-      </div>
+      <div id="split-config" style="display:none; margin-top:24px;">
+        <div class="status" id="split-fileinfo" style="margin-bottom:18px;"></div>
 
-      <div id="pdf2word-available">
-        <div class="dropzone" id="dz-pdf2word">
-          <div class="dz-ic"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M14 3H7a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2V8z"/><path d="M14 3v5h5"/><path d="M9 15l1.5 4 1.5-3 1.5 3 1.5-4"/></svg></div>
-          <div class="dz-label">Arraste um PDF aqui</div>
-          <div class="dz-sub">ou clique para escolher o arquivo</div>
-          <input type="file" id="file-pdf2word" accept="application/pdf">
+        <label class="field-label">como dividir</label>
+        <div class="radio-group split-modes" id="split-modes">
+          <label class="radio-opt checked">
+            <input type="radio" name="split-mode" value="parts" checked>
+            <div class="split-opt-body">
+              <div class="ro-title">Em partes iguais</div>
+              <div class="ro-desc">Ao meio, em 3, em 4… as páginas são distribuídas o mais igual possível.</div>
+              <div class="split-extra">
+                <div class="chip-row" id="split-part-chips">
+                  <button type="button" class="chip active" data-n="2">ao meio</button>
+                  <button type="button" class="chip" data-n="3">3 partes</button>
+                  <button type="button" class="chip" data-n="4">4 partes</button>
+                  <button type="button" class="chip" data-n="5">5 partes</button>
+                  <span class="split-inline">ou</span>
+                  <input type="number" id="split-parts-n" min="2" value="2" aria-label="número de partes">
+                  <span class="split-inline">partes</span>
+                </div>
+              </div>
+            </div>
+          </label>
+          <label class="radio-opt">
+            <input type="radio" name="split-mode" value="every">
+            <div class="split-opt-body">
+              <div class="ro-title">A cada X páginas</div>
+              <div class="ro-desc">Cria um arquivo novo a cada tantas páginas. Use 1 para separar página por página.</div>
+              <div class="split-extra">
+                <div class="chip-row">
+                  <span class="split-inline">a cada</span>
+                  <input type="number" id="split-every-n" min="1" value="1" aria-label="páginas por arquivo">
+                  <span class="split-inline">página(s)</span>
+                </div>
+              </div>
+            </div>
+          </label>
+          <label class="radio-opt">
+            <input type="radio" name="split-mode" value="ranges">
+            <div class="split-opt-body">
+              <div class="ro-title">Intervalos personalizados</div>
+              <div class="ro-desc">Você define cada parte. Ex.: <code>1-3, 4-10, 11</code></div>
+              <div class="split-extra">
+                <input type="text" id="split-ranges" placeholder="1-3, 4-10, 11" autocomplete="off">
+              </div>
+            </div>
+          </label>
         </div>
 
-        <div id="pdf2word-config" style="display:none; margin-top:24px;">
-          <div class="status" id="pdf2word-fileinfo" style="margin-bottom:18px;"></div>
-          <div class="actions-row">
-            <button class="btn" id="btn-pdf2word">Converter e baixar</button>
-            <span class="status" id="status-pdf2word"></span>
-          </div>
+        <label class="field-label">resultado</label>
+        <div class="split-summary" id="split-summary"></div>
+        <div class="page-grid" id="split-grid"></div>
+
+        <div class="sticky-bar-wrap">
+        <div class="actions-row sticky-bar">
+          <button class="btn" id="btn-split">Dividir e baixar</button>
+          <span class="status" id="status-split"></span>
+        </div>
+        </div>
+
+        <div class="note">
+          Com mais de uma parte, os arquivos vêm juntos num .zip. Tudo é processado no seu navegador; o PDF não sai do seu computador.
         </div>
       </div>
-
-      <canvas id="qtcanvas" width="10" height="10" style="display:none;"></canvas>
     </div>
   </div>
 
@@ -1005,7 +1042,10 @@ document.getElementById('back-btn').addEventListener('click', ()=>showView('home
 const FAV_KEY = 'duckument-favorites';
 const originalCardOrder = Array.from(document.getElementById('pdf-grid').children);
 function getFavorites(){
-  try{ return JSON.parse(localStorage.getItem(FAV_KEY) || '[]'); }catch(e){ return []; }
+  let list = [];
+  try{ list = JSON.parse(localStorage.getItem(FAV_KEY) || '[]'); }catch(e){ return []; }
+  const known = new Set(originalCardOrder.map(c => c.dataset.tool));
+  return Array.isArray(list) ? list.filter(t => known.has(t)) : [];
 }
 function setFavorites(list){
   try{ localStorage.setItem(FAV_KEY, JSON.stringify(list)); }catch(e){}
@@ -1613,219 +1653,262 @@ document.getElementById('btn-delete').addEventListener('click', async ()=>{
   }
 });
 
-// ================= PDF PARA WORD (BETA — LibreOffice via ZetaOffice/WASM) =================
-// Arquitetura (igual ao exemplo oficial "convertpdf" do zetajs):
-//  - O LibreOffice roda numa thread separada (web worker / pthread do Emscripten).
-//  - O zetajs e todas as chamadas UNO (abrir, salvar) SÓ existem dentro dessa thread.
-//  - A página principal só escreve/lê arquivos no FS virtual e conversa com a
-//    thread por mensagens (Module.uno_main -> MessagePort).
-let pdf2wordFile = null;
+// ================= DIVIDIR =================
+const SPLIT_COLORS = ['#8B6CF0','#2FA88A','#E07A4F','#3D8FE0','#C9539A','#B8902B','#5C6BC0','#4AA35A'];
+let splitDoc = null, splitPdfJsDoc = null, splitFile = null, splitPlan = { parts: [], error: '' };
 
-function checkCrossOriginIsolated(){
-  const blocked = document.getElementById('pdf2word-blocked');
-  const available = document.getElementById('pdf2word-available');
-  if(!blocked || !available) return;
-  if(!window.crossOriginIsolated){
-    blocked.style.display = 'block';
-    available.style.display = 'none';
-  }else{
-    blocked.style.display = 'none';
-    available.style.display = 'block';
-  }
-}
-checkCrossOriginIsolated();
-
-setupDropzone(document.getElementById('dz-pdf2word'), document.getElementById('file-pdf2word'), files=>{
+setupDropzone(document.getElementById('dz-split'), document.getElementById('file-split'), async files=>{
   if(!files.length) return;
-  const f = files[0];
-  const statusEl = document.getElementById('status-pdf2word');
-  if(!/\.pdf$/i.test(f.name) && f.type !== 'application/pdf'){
+  const statusEl = document.getElementById('status-split');
+  statusEl.className = 'status'; statusEl.textContent = '';
+  const file = files[0];
+  document.getElementById('file-split').value = '';
+  try{
+    const bytes = await file.arrayBuffer();
+    splitDoc = await PDFDocument.load(bytes, { ignoreEncryption: true });
+    splitPdfJsDoc = await pdfjsLib.getDocument({data: bytes.slice(0)}).promise;
+  }catch(err){
+    document.getElementById('split-config').style.display = 'block';
+    document.getElementById('split-fileinfo').textContent = '';
     statusEl.className = 'status err';
-    statusEl.textContent = 'esse arquivo não parece ser um PDF';
+    statusEl.textContent = 'erro: não consegui abrir esse PDF (' + err.message + ')';
     return;
   }
-  pdf2wordFile = f;
-  statusEl.className = 'status';
-  statusEl.textContent = '';
-  document.getElementById('pdf2word-fileinfo').textContent = `${pdf2wordFile.name} · ${fmtSize(pdf2wordFile.size)}`;
-  document.getElementById('pdf2word-config').style.display = 'block';
-  document.getElementById('file-pdf2word').value = ''; // permite escolher o mesmo arquivo de novo
+  splitFile = file;
+  const n = splitPdfJsDoc.numPages;
+  document.getElementById('split-fileinfo').textContent = `${file.name} · ${n} página${n>1?'s':''}`;
+  document.getElementById('split-parts-n').max = n;
+  document.getElementById('split-every-n').max = n;
+  document.getElementById('split-config').style.display = 'block';
+  await renderSplitGrid();
+  updateSplitPlan();
 });
 
-// Código que roda DENTRO da thread do LibreOffice (não tem window/document aqui).
-const ZETA_THREAD_SCRIPT = `
-Module.zetajs.then(function(zetajs){
-  const css = zetajs.uno.com.sun.star;
-  const desktop = css.frame.Desktop.create(zetajs.getUnoComponentContext());
-  const port = zetajs.mainPort;
-  function prop(name, value){ return new css.beans.PropertyValue({Name: name, Value: value}); }
-  function errMsg(err){
-    try{
-      const exc = zetajs.catchUnoException(err);
-      return (exc && exc.Message) || String(zetajs.getAnyType(exc));
-    }catch(e2){
-      return String((err && err.message) || err);
-    }
+// distribui N páginas em K partes o mais igual possível (as primeiras ficam com 1 a mais)
+function planEqualParts(total, k){
+  const parts = [];
+  const base = Math.floor(total / k), extra = total % k;
+  let start = 1;
+  for(let i=0;i<k;i++){
+    const size = base + (i < extra ? 1 : 0);
+    parts.push([start, start + size - 1]);
+    start += size;
   }
-  port.onmessage = function(e){
-    const d = e.data || {};
-    if(d.cmd !== 'convert') return;
-    let xModel = null;
-    try{
-      // writer_pdf_import abre o PDF no Writer (sem isso ele abre no Draw,
-      // e o Draw não consegue exportar para .docx).
-      xModel = desktop.loadComponentFromURL('file://' + d.from, '_blank', 0,
-        [prop('Hidden', true), prop('FilterName', 'writer_pdf_import')]);
-      if(!xModel) throw new Error('o LibreOffice não conseguiu abrir o PDF');
-      xModel.storeToURL('file://' + d.to,
-        [prop('Overwrite', true), prop('FilterName', 'MS Word 2007 XML')]);
-      port.postMessage({cmd: 'converted', id: d.id});
-    }catch(err){
-      port.postMessage({cmd: 'error', id: d.id, message: errMsg(err)});
-    }finally{
-      try{ if(xModel) xModel.close(false); }catch(e3){}
+  return parts;
+}
+function planEvery(total, x){
+  const parts = [];
+  for(let s=1; s<=total; s+=x) parts.push([s, Math.min(s + x - 1, total)]);
+  return parts;
+}
+function planRanges(total, text){
+  const chunks = text.split(/[,;]+/).map(t=>t.trim()).filter(Boolean);
+  if(!chunks.length) throw new Error('digite pelo menos um intervalo, ex.: 1-3, 4-10');
+  return chunks.map(c=>{
+    const m = c.match(/^(\d+)\s*(?:-|–|a|até)\s*(\d+|fim)$/i) || c.match(/^(\d+)$/);
+    if(!m) throw new Error(`não entendi "${c}" — use o formato 1-3`);
+    const a = parseInt(m[1], 10);
+    const b = m[2] === undefined ? a : (/fim/i.test(m[2]) ? total : parseInt(m[2], 10));
+    if(a < 1 || b < 1) throw new Error(`"${c}": as páginas começam em 1`);
+    if(a > total || b > total) throw new Error(`"${c}": o PDF só tem ${total} página${total>1?'s':''}`);
+    if(b < a) throw new Error(`"${c}": o início é maior que o fim`);
+    return [a, b];
+  });
+}
+
+function currentSplitMode(){
+  return document.querySelector('input[name="split-mode"]:checked').value;
+}
+function updateSplitPlan(){
+  if(!splitPdfJsDoc) return;
+  const total = splitPdfJsDoc.numPages;
+  let parts = [], error = '';
+  try{
+    const mode = currentSplitMode();
+    if(mode === 'parts'){
+      let k = parseInt(document.getElementById('split-parts-n').value, 10);
+      if(!(k >= 2)) throw new Error('escolha pelo menos 2 partes');
+      if(k > total) throw new Error(`o PDF só tem ${total} página${total>1?'s':''} — dá pra dividir em no máximo ${total} partes`);
+      parts = planEqualParts(total, k);
+    }else if(mode === 'every'){
+      const x = parseInt(document.getElementById('split-every-n').value, 10);
+      if(!(x >= 1)) throw new Error('use pelo menos 1 página por arquivo');
+      parts = planEvery(total, x);
+    }else{
+      parts = planRanges(total, document.getElementById('split-ranges').value);
     }
-  };
-  port.postMessage({cmd: 'ready'});
-});
-`;
-
-const zeta = { promise: null, port: null, FS: null, failed: null, pending: new Map(), nextId: 1 };
-
-function fmtMB(bytes){ return (bytes/1048576).toFixed(0) + ' MB'; }
-
-function loadZetaOffice(onStatus){
-  if(zeta.failed) return Promise.reject(zeta.failed);
-  if(zeta.promise) return zeta.promise;
-  zeta.promise = new Promise((resolve, reject)=>{
-    let settled = false;
-    let timer = null;
-    const finish = (ok, val)=>{
-      if(settled) return;
-      settled = true;
-      clearTimeout(timer);
-      if(ok) resolve(val);
-      else { zeta.failed = val; reject(val); }
-    };
-    const armTimeout = ()=>{
-      clearTimeout(timer);
-      // o timeout só conta a partir da última atividade (download progredindo não estoura)
-      timer = setTimeout(()=>finish(false, new Error('tempo esgotado esperando o LibreOffice inicializar')), 120000);
-    };
-    armTimeout();
-
-    const soffice_base_url = 'https://cdn.zetaoffice.net/zetaoffice_latest/';
-    const zetaJsUrl = new URL('zeta.js', location.href).href;
-
-    // zeta.js precisa estar publicado na mesma pasta do .html (mesma origem)
-    fetch(zetaJsUrl, {method:'HEAD'}).then(r=>{
-      if(!r.ok) throw new Error('arquivo zeta.js não encontrado ao lado do .html — publique-o na mesma pasta');
-    }).then(()=>{
-      const threadUrl = URL.createObjectURL(new Blob([ZETA_THREAD_SCRIPT], {type:'text/javascript'}));
-      const ModuleObj = {
-        canvas: document.getElementById('qtcanvas'),
-        uno_scripts: [zetaJsUrl, threadUrl],
-        locateFile: (path, prefix)=>(prefix || soffice_base_url) + path,
-        mainScriptUrlOrBlob: new Blob(["importScripts('" + soffice_base_url + "soffice.js');"], {type:'text/javascript'}),
-        setStatus: (txt)=>{
-          if(!txt) return;
-          armTimeout();
-          const m = /\((\d+(?:\.\d+)?)\/(\d+(?:\.\d+)?)\)/.exec(txt);
-          if(m) onStatus(`baixando o LibreOffice… ${fmtMB(+m[1])} de ${fmtMB(+m[2])}`);
-          else onStatus('iniciando o LibreOffice…');
-        },
-        onAbort: (what)=>finish(false, new Error('o LibreOffice travou ao iniciar (' + (what || 'abort') + ')')),
-      };
-      window.Module = ModuleObj;
-
-      const s = document.createElement('script');
-      s.src = soffice_base_url + 'soffice.js';
-      s.onerror = ()=>finish(false, new Error('não deu pra baixar o componente do LibreOffice (rede ou CDN indisponível)'));
-      s.onload = ()=>{
-        armTimeout();
-        onStatus('iniciando o LibreOffice…');
-        if(!ModuleObj.uno_main){
-          finish(false, new Error('o soffice.js carregou, mas não expôs Module.uno_main'));
-          return;
-        }
-        ModuleObj.uno_main.then(port=>{
-          port.onmessage = (e)=>{
-            const d = e.data || {};
-            if(d.cmd === 'ready'){
-              zeta.port = port;
-              zeta.FS = window.FS || ModuleObj.FS;
-              if(!zeta.FS){ finish(false, new Error('sistema de arquivos do LibreOffice indisponível')); return; }
-              finish(true, zeta);
-              return;
-            }
-            const job = zeta.pending.get(d.id);
-            if(!job) return;
-            zeta.pending.delete(d.id);
-            if(d.cmd === 'converted') job.resolve();
-            else job.reject(new Error(d.message || 'falha na conversão'));
-          };
-        }, err=>finish(false, err instanceof Error ? err : new Error(String(err))));
-      };
-      document.body.appendChild(s);
-    }).catch(err=>finish(false, err));
-  });
-  return zeta.promise;
+  }catch(err){ error = err.message; parts = []; }
+  splitPlan = { parts, error };
+  renderSplitPlan();
 }
 
-function zetaConvert(from, to){
-  return new Promise((resolve, reject)=>{
-    const id = zeta.nextId++;
-    const t = setTimeout(()=>{
-      zeta.pending.delete(id);
-      reject(new Error('a conversão demorou demais e foi cancelada'));
-    }, 180000);
-    zeta.pending.set(id, {
-      resolve: ()=>{ clearTimeout(t); resolve(); },
-      reject: (e)=>{ clearTimeout(t); reject(e); },
+function renderSplitPlan(){
+  const summary = document.getElementById('split-summary');
+  const btn = document.getElementById('btn-split');
+  const statusEl = document.getElementById('status-split');
+  summary.innerHTML = '';
+  if(splitPlan.error){
+    statusEl.className = 'status err';
+    statusEl.textContent = splitPlan.error;
+  }else if(statusEl.classList.contains('err')){
+    statusEl.className = 'status'; statusEl.textContent = '';
+  }
+  btn.disabled = !!splitPlan.error || !splitPlan.parts.length;
+  btn.textContent = splitPlan.parts.length > 1 ? `Dividir em ${splitPlan.parts.length} arquivos e baixar` : 'Dividir e baixar';
+
+  // qual parte cada página pertence (intervalos personalizados podem repetir ou pular páginas)
+  const pageParts = new Map();
+  splitPlan.parts.forEach(([a,b], idx)=>{
+    const chip = document.createElement('div');
+    chip.className = 'split-part';
+    const pages = b - a + 1;
+    chip.innerHTML = `<i style="background:${SPLIT_COLORS[idx % SPLIT_COLORS.length]}"></i>Parte ${idx+1} <span>· ${a===b ? 'pág. '+a : 'págs. '+a+'–'+b} (${pages})</span>`;
+    summary.appendChild(chip);
+    for(let p=a;p<=b;p++){
+      if(!pageParts.has(p)) pageParts.set(p, []);
+      pageParts.get(p).push(idx);
+    }
+  });
+
+  const cards = document.getElementById('split-grid').children;
+  Array.from(cards).forEach((card, i)=>{
+    const p = i + 1;
+    const idxs = pageParts.get(p) || [];
+    const label = card.querySelector('.pg-part');
+    card.classList.remove('part-start');
+    if(!idxs.length){
+      card.classList.add('removed');
+      card.style.borderColor = '';
+      label.textContent = splitPlan.error ? '' : 'fora';
+      label.style.color = '';
+      return;
+    }
+    card.classList.remove('removed');
+    const color = SPLIT_COLORS[idxs[0] % SPLIT_COLORS.length];
+    card.style.borderColor = color;
+    card.style.setProperty('--part-color', color);
+    label.style.color = color;
+    label.textContent = 'parte ' + idxs.map(x=>x+1).join(', ');
+    const prev = pageParts.get(p - 1);
+    if(!prev || prev[0] !== idxs[0]) card.classList.add('part-start');
+  });
+}
+
+async function renderSplitGrid(){
+  const grid = document.getElementById('split-grid');
+  grid.innerHTML = '';
+  const doc = splitPdfJsDoc;
+  for(let i=1;i<=doc.numPages;i++){
+    if(doc !== splitPdfJsDoc) return; // outro arquivo foi escolhido no meio
+    const page = await doc.getPage(i);
+    const viewport = page.getViewport({scale:0.35});
+    const canvas = document.createElement('canvas');
+    canvas.width = viewport.width;
+    canvas.height = viewport.height;
+    await page.render({canvasContext: canvas.getContext('2d'), viewport}).promise;
+
+    const card = document.createElement('div');
+    card.className = 'page-card split-card';
+    const numLabel = document.createElement('div');
+    numLabel.className = 'pg-num';
+    numLabel.textContent = 'pág. ' + i;
+    const partLabel = document.createElement('div');
+    partLabel.className = 'pg-part';
+    card.appendChild(canvas);
+    card.appendChild(numLabel);
+    card.appendChild(partLabel);
+    grid.appendChild(card);
+
+    canvas.addEventListener('click', async ()=>{
+      fsLensEnabled = false;
+      const bigViewport = page.getViewport({scale: 2.2});
+      const bigCanvas = document.createElement('canvas');
+      bigCanvas.width = bigViewport.width;
+      bigCanvas.height = bigViewport.height;
+      await page.render({canvasContext: bigCanvas.getContext('2d'), viewport: bigViewport}).promise;
+      document.getElementById('fs-img').src = bigCanvas.toDataURL('image/png');
+      document.getElementById('fullscreen-modal').style.display = 'flex';
     });
-    zeta.port.postMessage({cmd:'convert', id, from, to});
-  });
+    if(i % 8 === 0) renderSplitPlan(); // pinta as cores enquanto as miniaturas vão chegando
+  }
+  renderSplitPlan();
 }
 
-document.getElementById('btn-pdf2word').addEventListener('click', async ()=>{
-  const statusEl = document.getElementById('status-pdf2word');
-  const btn = document.getElementById('btn-pdf2word');
-  if(!pdf2wordFile) return;
+// troca de modo
+document.querySelectorAll('input[name="split-mode"]').forEach(r=>{
+  r.addEventListener('change', ()=>{
+    document.querySelectorAll('#split-modes .radio-opt').forEach(opt=>{
+      opt.classList.toggle('checked', opt.querySelector('input').checked);
+    });
+    updateSplitPlan();
+  });
+});
+// atalhos "ao meio", "3 partes"...
+document.querySelectorAll('#split-part-chips .chip').forEach(chip=>{
+  chip.addEventListener('click', e=>{
+    e.preventDefault();
+    document.getElementById('split-parts-n').value = chip.dataset.n;
+    syncPartChips();
+    updateSplitPlan();
+  });
+});
+function syncPartChips(){
+  const v = document.getElementById('split-parts-n').value;
+  document.querySelectorAll('#split-part-chips .chip').forEach(c=>c.classList.toggle('active', c.dataset.n === v));
+}
+document.getElementById('split-parts-n').addEventListener('input', ()=>{ syncPartChips(); updateSplitPlan(); });
+document.getElementById('split-every-n').addEventListener('input', updateSplitPlan);
+document.getElementById('split-ranges').addEventListener('input', updateSplitPlan);
+// clicar dentro dos campos não deve "roubar" o clique do label
+document.querySelectorAll('#split-modes .split-extra').forEach(el=>{
+  el.addEventListener('click', e=>{
+    const opt = el.closest('.radio-opt');
+    const radio = opt.querySelector('input[type=radio]');
+    if(!radio.checked){ radio.checked = true; radio.dispatchEvent(new Event('change')); }
+    if(e.target.tagName !== 'INPUT') e.preventDefault();
+  });
+});
+
+document.getElementById('btn-split').addEventListener('click', async ()=>{
+  const statusEl = document.getElementById('status-split');
+  const btn = document.getElementById('btn-split');
+  if(!splitDoc || splitPlan.error || !splitPlan.parts.length) return;
   btn.disabled = true;
   statusEl.className = 'status';
-  const setLoading = (txt)=>{ statusEl.innerHTML = '<span class="loader"></span> '; statusEl.appendChild(document.createTextNode(txt)); };
-  setLoading('baixando e iniciando o LibreOffice (na primeira vez baixa ~150–250 MB)…');
-  const from = '/tmp/entrada.pdf';
-  const to = '/tmp/saida.docx';
-  let ctx = null;
+  statusEl.innerHTML = '<span class="loader"></span> dividindo…';
   try{
-    if(!window.crossOriginIsolated){
-      throw new Error('este ambiente não tem isolamento COOP/COEP ativo — hospede o site num servidor configurado com esses cabeçalhos');
+    const base = splitFile.name.replace(/\.pdf$/i, '');
+    const parts = splitPlan.parts;
+    const pad = String(parts.length).length;
+    const outputs = [];
+    for(let i=0;i<parts.length;i++){
+      const [a,b] = parts[i];
+      statusEl.innerHTML = `<span class="loader"></span> gerando parte ${i+1} de ${parts.length}…`;
+      const outDoc = await PDFDocument.create();
+      const idx = [];
+      for(let p=a;p<=b;p++) idx.push(p-1);
+      const pages = await outDoc.copyPages(splitDoc, idx);
+      pages.forEach(pg => outDoc.addPage(pg));
+      const bytes = await outDoc.save();
+      const range = a === b ? `pag-${a}` : `pags-${a}-${b}`;
+      outputs.push({ name: `${base}_parte-${String(i+1).padStart(pad,'0')}_${range}.pdf`, bytes });
     }
-    ctx = await loadZetaOffice(setLoading);
-
-    setLoading('carregando o PDF…');
-    ctx.FS.writeFile(from, new Uint8Array(await pdf2wordFile.arrayBuffer()));
-
-    setLoading('convertendo para .docx…');
-    await zetaConvert(from, to);
-
-    const outBytes = ctx.FS.readFile(to);
-    const outName = pdf2wordFile.name.replace(/\.pdf$/i, '') + '.docx';
-    downloadBlob(new Blob([outBytes], {type:'application/vnd.openxmlformats-officedocument.wordprocessingml.document'}), outName);
+    if(outputs.length === 1){
+      downloadBlob(new Blob([outputs[0].bytes], {type:'application/pdf'}), outputs[0].name);
+    }else{
+      statusEl.innerHTML = '<span class="loader"></span> montando o .zip…';
+      const zip = new JSZip();
+      outputs.forEach(o => zip.file(o.name, o.bytes));
+      const zipBlob = await zip.generateAsync({type:'blob'});
+      downloadBlob(zipBlob, `${base}_dividido.zip`);
+    }
     statusEl.className = 'status ok';
-    statusEl.textContent = 'pronto — download iniciado';
+    statusEl.textContent = outputs.length === 1 ? 'pronto — download iniciado' : `pronto — ${outputs.length} arquivos no .zip`;
   }catch(err){
     statusEl.className = 'status err';
-    const reload = zeta.failed ? ' Recarregue a página pra tentar de novo.' : '';
-    statusEl.textContent = 'erro: ' + err.message + ' — recurso experimental (beta).' + reload;
-  }finally{
-    if(ctx && ctx.FS){
-      try{ ctx.FS.unlink(from); }catch(e){}
-      try{ ctx.FS.unlink(to); }catch(e){}
-    }
-    btn.disabled = !!zeta.failed;
+    statusEl.textContent = 'erro: ' + err.message;
   }
+  btn.disabled = false;
 });
 
 // ================= IMAGEM PARA PDF =================
